@@ -1,0 +1,68 @@
+package com.trueprint.app.viewmodel
+
+import android.content.Context
+import android.net.Uri
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.trueprint.app.data.JobHistoryRepository
+import com.trueprint.app.data.LocalDocumentProcessor
+import com.trueprint.app.data.PrintHistoryEntry
+import com.trueprint.app.data.PrinterProfileRepository
+import com.trueprint.app.model.DuplexMode
+import com.trueprint.app.model.PaperType
+import com.trueprint.app.model.PrintOrientation
+import com.trueprint.app.model.PageRangeParser
+import com.trueprint.app.model.PageSelection
+import com.trueprint.app.model.PrintOptions
+import com.trueprint.app.model.PrinterProfile
+import com.trueprint.app.network.IppClient
+import com.trueprint.app.network.IppClientException
+import com.trueprint.app.network.IppPrinterAttributes
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+
+enum class HomeAction(val label: String) { PrintPdf("Print PDF"), PrintImage("Print image"), TestConnection("Test connection"), Settings("Settings"), JobHistory("Job history") }
+enum class AppDestination { Home, Print, Settings, History }
+sealed interface PrintSubmissionState { data object Ready : PrintSubmissionState; data object PreparingDocument : PrintSubmissionState; data object Connecting : PrintSubmissionState; data object Sending : PrintSubmissionState; data class Submitted(val jobId: Int?) : PrintSubmissionState; data class Failed(val message: String) : PrintSubmissionState }
+sealed interface ConnectionTestState { data object Idle : ConnectionTestState; data object Testing : ConnectionTestState; data class Connected(val attributes: IppPrinterAttributes) : ConnectionTestState; data class Failed(val message: String) : ConnectionTestState }
+enum class PrinterSettingField { PrinterName, Protocol, Server, Port, Queue }
+data class PrinterSettingsValidation(val printerName: String? = null, val protocol: String? = null, val server: String? = null, val port: String? = null, val queue: String? = null) { val isValid get() = listOf(printerName, protocol, server, port, queue).all { it == null } }
+data class PrinterSettingsUiState(val printerName: String, val protocol: String, val server: String, val port: String, val queue: String, val validation: PrinterSettingsValidation = PrinterSettingsValidation(), val showResetConfirmation: Boolean = false) { val generatedUri get() = PrinterProfile.generatedUri(protocol, server, port, queue); companion object { fun from(p: PrinterProfile) = PrinterSettingsUiState(p.displayName,p.protocol,p.server,p.port.toString(),p.queue) } }
+data class SelectedPdf(val uri: String, val fileName: String, val mimeType: String = "application/pdf", val pageCount: Int? = null) { val isImage get() = mimeType.startsWith("image/") }
+val SupportedPaperSizes = listOf("A4", "A5", "A6", "B5", "B6", "EnvC5", "EnvMonarch", "EnvDL", "Executive", "Legal", "Letter")
+data class MainUiState(val printer: PrinterProfile = PrinterProfile.Default, val connectionStatus: String = "Not tested", val destination: AppDestination = AppDestination.Home, val settings: PrinterSettingsUiState = PrinterSettingsUiState.from(PrinterProfile.Default), val connection: ConnectionTestState = ConnectionTestState.Idle, val selectedPdf: SelectedPdf? = null, val copies: Int = 1, val paperSize: String = "A4", val printOptions: PrintOptions = PrintOptions(), val pageInput: String = "", val pageInputError: String? = null, val history: List<PrintHistoryEntry> = emptyList(), val printSubmission: PrintSubmissionState = PrintSubmissionState.Ready, val notification: String? = null)
+
+class MainViewModel(private val printerProfileRepository: PrinterProfileRepository, private val ippClient: IppClient, context: Context, private val historyRepository: JobHistoryRepository) : ViewModel() {
+    private val documents = LocalDocumentProcessor(context)
+    private val _uiState = mutableStateOf(MainUiState())
+    val uiState: State<MainUiState> = _uiState
+    init { viewModelScope.launch { printerProfileRepository.profile.collect { _uiState.value = _uiState.value.copy(printer=it) } }; viewModelScope.launch { historyRepository.entries.collect { _uiState.value = _uiState.value.copy(history=it) } } }
+    fun onActionSelected(action: HomeAction) = when(action) { HomeAction.Settings -> openSettings(); HomeAction.TestConnection -> testConnection(); HomeAction.JobHistory -> _uiState.value=_uiState.value.copy(destination=AppDestination.History); HomeAction.PrintPdf, HomeAction.PrintImage -> Unit }
+    fun onDocumentSelected(uri: String, fileName: String, mimeType: String) { val selected=SelectedPdf(uri,fileName,mimeType); _uiState.value=_uiState.value.copy(selectedPdf=selected,destination=AppDestination.Print,printSubmission=PrintSubmissionState.Ready,pageInput="",pageInputError=null,printOptions=PrintOptions()); if(mimeType=="application/pdf") viewModelScope.launch { val count=runCatching { withContext(Dispatchers.IO) { documents.pdfPageCount(Uri.parse(uri)) } }.getOrNull(); if(_uiState.value.selectedPdf?.uri==uri) { val input=_uiState.value.pageInput; val pageError=if(input.isBlank()) null else PageRangeParser.parse(input,count).exceptionOrNull()?.message; _uiState.value=_uiState.value.copy(selectedPdf=selected.copy(pageCount=count),pageInputError=pageError) } } }
+    fun onUnsupportedSharedDocument() { _uiState.value=_uiState.value.copy(notification="TruePrint supports shared PDF, JPEG, and PNG documents only.") }
+    fun updateCopies(v:Int) { _uiState.value=_uiState.value.copy(copies=v.coerceIn(1,99),printSubmission=PrintSubmissionState.Ready) }
+    fun updatePaperSize(v:String) { if(v in SupportedPaperSizes) _uiState.value=_uiState.value.copy(paperSize=v,printSubmission=PrintSubmissionState.Ready) }
+    fun selectAllPages() { _uiState.value=_uiState.value.copy(printOptions=_uiState.value.printOptions.copy(pageSelection=PageSelection.All),pageInputError=null,printSubmission=PrintSubmissionState.Ready) }
+    fun updateCustomPages(input:String) { val result=PageRangeParser.parse(input,_uiState.value.selectedPdf?.pageCount); _uiState.value=_uiState.value.copy(pageInput=input,pageInputError=result.exceptionOrNull()?.message,printOptions=_uiState.value.printOptions.copy(pageSelection=result.getOrNull()?.let { PageSelection.Custom(input.trim(),it) } ?: PageSelection.Custom(input,emptyList())),printSubmission=PrintSubmissionState.Ready) }
+    fun updatePagesPerSheet(v:Int) { if(v in setOf(1,2,4)) _uiState.value=_uiState.value.copy(printOptions=_uiState.value.printOptions.copy(pagesPerSheet=v),printSubmission=PrintSubmissionState.Ready) }
+    fun updateDuplex(v:DuplexMode) { _uiState.value=_uiState.value.copy(printOptions=_uiState.value.printOptions.copy(duplex=v),printSubmission=PrintSubmissionState.Ready) }
+    fun updateOrientation(v:PrintOrientation) { _uiState.value=_uiState.value.copy(printOptions=_uiState.value.printOptions.copy(orientation=v),printSubmission=PrintSubmissionState.Ready) }
+    fun updatePaperType(v:PaperType) { _uiState.value=_uiState.value.copy(printOptions=_uiState.value.printOptions.copy(paperType=v),printSubmission=PrintSubmissionState.Ready) }
+    fun printSelectedPdf() { if(_uiState.value.printSubmission.isActive||_uiState.value.pageInputError!=null) return; val doc=_uiState.value.selectedPdf?:return; val profile=_uiState.value.printer; val copies=_uiState.value.copies; val size=_uiState.value.paperSize; val options=_uiState.value.printOptions; viewModelScope.launch { _uiState.value=_uiState.value.copy(printSubmission=PrintSubmissionState.PreparingDocument); var temporary:File?=null; val result=try { val (bytes, ippOptions)=withContext(Dispatchers.IO) { val custom=options.pageSelection as? PageSelection.Custom; when { doc.isImage -> { temporary=documents.createImagePdf(Uri.parse(doc.uri),doc.mimeType,size,options.orientation); temporary!!.readBytes() to options.copy(pageSelection=PageSelection.All) }; custom!=null&&options.pagesPerSheet>1 -> { require(custom.ranges.isNotEmpty()){ "Enter a valid page selection." }; temporary=documents.createReducedPdf(Uri.parse(doc.uri),custom.ranges,options.orientation); temporary!!.readBytes() to options.copy(pageSelection=PageSelection.All) }; options.orientation==PrintOrientation.Landscape -> { temporary=documents.createOrientedPdf(Uri.parse(doc.uri),options.orientation); temporary!!.readBytes() to options }; else -> documents.readBytes(Uri.parse(doc.uri)) to options } }; require(bytes.isNotEmpty()){ "The selected document is empty." }; _uiState.value=_uiState.value.copy(printSubmission=PrintSubmissionState.Connecting); _uiState.value=_uiState.value.copy(printSubmission=PrintSubmissionState.Sending); Result.success(ippClient.printPdf(profile,bytes,doc.fileName.substringBeforeLast('.')+".pdf",copies,size,ippOptions)) } catch(e:CancellationException){throw e} catch(e:Throwable){Result.failure(e)} finally { temporary?.delete() }; val status=result.fold({PrintSubmissionState.Submitted(it.jobId)},{PrintSubmissionState.Failed(printErrorMessage(it))}); _uiState.value=_uiState.value.copy(printSubmission=status); historyRepository.add(PrintHistoryEntry(doc.fileName,doc.mimeType,System.currentTimeMillis(),profile.displayName,copies,size,pageSpec(options.pageSelection),options.pagesPerSheet,options.duplex.label,options.orientation.label,options.paperType.label,(status as? PrintSubmissionState.Submitted)?.jobId,if(status is PrintSubmissionState.Submitted)"Submitted" else "Failed",(status as? PrintSubmissionState.Failed)?.message)) } }
+    fun clearHistory() { viewModelScope.launch { historyRepository.clear() } }
+    fun onSettingsFieldChanged(f:PrinterSettingField,v:String) { val s=_uiState.value.settings; val updated=when(f){PrinterSettingField.PrinterName->s.copy(printerName=v);PrinterSettingField.Protocol->s.copy(protocol=v);PrinterSettingField.Server->s.copy(server=v);PrinterSettingField.Port->s.copy(port=v);PrinterSettingField.Queue->s.copy(queue=v)}.copy(validation=PrinterSettingsValidation()); _uiState.value=_uiState.value.copy(settings=updated) }
+    fun saveSettings() { val s=_uiState.value.settings; val check=validate(s); if(!check.isValid){_uiState.value=_uiState.value.copy(settings=s.copy(validation=check));return}; val p=PrinterProfile(s.printerName.trim(),s.protocol.trim(),s.server.trim(),s.port.trim().toInt(),s.queue.trim()); viewModelScope.launch { printerProfileRepository.save(p);_uiState.value=_uiState.value.copy(printer=p,destination=AppDestination.Home,settings=PrinterSettingsUiState.from(p),connection=ConnectionTestState.Idle,notification="Printer settings saved.") } }
+    fun requestReset(){_uiState.value=_uiState.value.copy(settings=_uiState.value.settings.copy(showResetConfirmation=true))}; fun dismissReset(){_uiState.value=_uiState.value.copy(settings=_uiState.value.settings.copy(showResetConfirmation=false))}; fun resetToDefaults(){viewModelScope.launch{printerProfileRepository.resetToDefaults();_uiState.value=_uiState.value.copy(printer=PrinterProfile.Default,settings=PrinterSettingsUiState.from(PrinterProfile.Default),connection=ConnectionTestState.Idle,notification="Printer settings restored to defaults.")}}
+    fun navigateHome(){_uiState.value=_uiState.value.copy(destination=AppDestination.Home)}; fun onNotificationShown(){_uiState.value=_uiState.value.copy(notification=null)}
+    private fun testConnection(){if(_uiState.value.connection is ConnectionTestState.Testing)return;val p=_uiState.value.printer;_uiState.value=_uiState.value.copy(connection=ConnectionTestState.Testing);viewModelScope.launch{val r=runCatching{ippClient.getPrinterAttributes(p)};_uiState.value=_uiState.value.copy(connection=r.fold({ConnectionTestState.Connected(it)},{ConnectionTestState.Failed(connectionErrorMessage(it))}))}}
+    private fun openSettings(){_uiState.value=_uiState.value.copy(destination=AppDestination.Settings,settings=PrinterSettingsUiState.from(_uiState.value.printer))}
+    private fun validate(s:PrinterSettingsUiState):PrinterSettingsValidation { val p=s.port.trim().toIntOrNull();val proto=s.protocol.trim();val server=s.server.trim();return PrinterSettingsValidation(s.printerName.trim().takeIf{it.isEmpty()}?.let{"Printer name is required."},when{proto.isEmpty()->"Protocol is required.";!proto.equals("ipp",true)&&!proto.equals("ipps",true)->"Use IPP or IPPS.";else->null},when{server.isEmpty()->"Server or IP address is required.";server.contains("://")||server.contains("/")->"Enter only a server name or IP address.";else->null},if(p==null||p !in 1..65535)"Enter a valid port from 1 to 65535." else null,s.queue.trim().takeIf{it.isEmpty()}?.let{"Printer queue is required."}) }
+    private fun connectionErrorMessage(e:Throwable)=when(e){is IppClientException.Transport->"${e.message}\nCheck Tailscale, server address, port, and network connection.";is IppClientException->e.message.orEmpty();else->"Connection failed. Check Tailscale, server address, port, and network connection."}; private fun printErrorMessage(e:Throwable)=when(e){is IppClientException.Transport->"Cannot reach CUPS. Check Tailscale, server address, port, and network connection.";is IppClientException->e.message.orEmpty();else->e.message?:"Unable to submit the print job."}; private fun pageSpec(s:PageSelection)=when(s){PageSelection.All->"All";is PageSelection.Custom->s.specification}
+}
+private val PrintSubmissionState.isActive get()=this is PrintSubmissionState.PreparingDocument||this is PrintSubmissionState.Connecting||this is PrintSubmissionState.Sending
