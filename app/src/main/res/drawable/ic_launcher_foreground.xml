@@ -1,10 +1,15 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#FFFFFFFF" android:pathData="M31,22h33l13,13v43c0,5.5 -4.5,10 -10,10h-36c-5.5,0 -10,-4.5 -10,-10v-46c0,-5.5 4.5,-10 10,-10z" />
-    <path android:fillColor="#FFBBC5FF" android:pathData="M64,22v13h13z" />
-    <path android:fillColor="#FF3849A8" android:pathData="M35,43h28v7h-10v23h-8v-23h-10z" />
-    <path android:fillColor="#FF00A99D" android:pathData="M62,66l5,5 13,-15 5,5 -18,20 -10,-10z" />
-    <path android:fillColor="#FF00A99D" android:pathData="M22,78h25v10h-25z" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M27,80h3.5c3.5,0 5.5,1.5 5.5,3.9c0,2.5 -2,4.1 -5.5,4.1h-3.5zM30,82v4h0.5c1.4,0 2.2,-0.7 2.2,-2c0,-1.2 -0.8,-2 -2.2,-2zM38,80h3v8h-3z" />
+    <!-- Paper emerging from the printer: intentionally large for launcher-scale clarity. -->
+    <path android:fillColor="#FFF8FAFF" android:pathData="M37,20h34v31h-34z" />
+    <path android:fillColor="#FFBEEDE8" android:pathData="M61,20l10,10h-10z" />
+    <path android:fillColor="#FF00B7A5" android:pathData="M44,37l5,5 12,-13 4,4 -16,17 -9,-9z" />
+    <!-- Bold rounded printer silhouette. -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M28,43h52c6.6,0 12,5.4 12,12v24c0,6.6 -5.4,12 -12,12h-52c-6.6,0 -12,-5.4 -12,-12v-24c0,-6.6 5.4,-12 12,-12z" />
+    <path android:fillColor="#FF293A91" android:pathData="M29,58h50v20h-50z" />
+    <path android:fillColor="#FFF8FAFF" android:pathData="M36,65h25v5h-25z" />
+    <path android:fillColor="#FF00B7A5" android:pathData="M72,61a4,4 0,1 0,0.1,0z" />
+    <!-- Small Dev-only corner signal, outside the printer and paper hierarchy. -->
+    <path android:fillColor="#FF00E2CF" android:pathData="M82,82a7,7 0,1 0,0.1,0z" />
 </vector>

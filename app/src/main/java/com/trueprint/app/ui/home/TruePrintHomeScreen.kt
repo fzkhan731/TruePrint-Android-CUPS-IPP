@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,7 +29,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -53,6 +58,7 @@ fun TruePrintHomeScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    var showSetupGuide by rememberSaveable { mutableStateOf(!uiState.printer.isConfigured) }
 
     LaunchedEffect(uiState.notification) {
         uiState.notification?.let { message ->
@@ -63,7 +69,7 @@ fun TruePrintHomeScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = { TopAppBar(title = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_launcher_foreground), contentDescription = "TruePrint", modifier = Modifier.height(28.dp)); Spacer(Modifier.width(8.dp)); Text("TruePrint") } }) },
+        topBar = { TopAppBar(title = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_trueprint_printer), contentDescription = "TruePrint printer", modifier = Modifier.height(28.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("TruePrint Dev") } }) },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
         Column(
@@ -138,6 +144,28 @@ fun TruePrintHomeScreen(
                 ) { Text("JOB HISTORY") }
             }
         }
+    }
+
+    if (!uiState.printer.isConfigured && showSetupGuide) {
+        AlertDialog(
+            onDismissRequest = { showSetupGuide = false },
+            title = { Text("Set up your CUPS printer") },
+            text = {
+                Text(
+                    "Open Printer Settings to enter your printer name, CUPS server address, port, and queue. " +
+                        "You can test the connection before saving."
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showSetupGuide = false
+                    onActionSelected(HomeAction.Settings)
+                }) { Text("SET UP PRINTER") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSetupGuide = false }) { Text("NOT NOW") }
+            }
+        )
     }
 }
 

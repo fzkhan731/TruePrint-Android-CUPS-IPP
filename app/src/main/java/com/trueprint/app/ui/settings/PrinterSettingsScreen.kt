@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -84,21 +85,35 @@ fun PrinterSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Configure the printer profile stored on this phone.",
+                text = "Enter the details for the CUPS printer you want to use. These settings stay on this phone.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("What to enter", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                    Text("Printer name: a label for this printer, such as Office printer.")
+                    Text("CUPS server: a private IP address or hostname, such as 100.x.x.x or cups.example.tailnet.ts.net.")
+                    Text("Port: normally 631 for IPP. Printer queue: the queue name shown by your CUPS server.")
+                    Text("Use Test connection after saving to confirm that TruePrint can reach CUPS.")
+                }
+            }
             SettingsSection("Printer")
             SettingsTextField(
                 label = "Printer Name",
                 value = settings.printerName,
                 error = settings.validation.printerName,
+                placeholder = "For example, Office printer",
                 onValueChange = { onFieldChanged(PrinterSettingField.PrinterName, it) }
             )
             SettingsTextField(
                 label = "Protocol",
                 value = settings.protocol,
                 error = settings.validation.protocol,
+                placeholder = "IPP",
                 onValueChange = { onFieldChanged(PrinterSettingField.Protocol, it) }
             )
             SettingsSection("Server")
@@ -106,6 +121,7 @@ fun PrinterSettingsScreen(
                 label = "Server / IP Address",
                 value = settings.server,
                 error = settings.validation.server,
+                placeholder = "100.x.x.x or cups.example.tailnet.ts.net",
                 onValueChange = { onFieldChanged(PrinterSettingField.Server, it) }
             )
             SettingsSection("Connection")
@@ -113,6 +129,7 @@ fun PrinterSettingsScreen(
                 label = "Port",
                 value = settings.port,
                 error = settings.validation.port,
+                placeholder = "631",
                 keyboardType = KeyboardType.Number,
                 onValueChange = { onFieldChanged(PrinterSettingField.Port, it) }
             )
@@ -120,6 +137,7 @@ fun PrinterSettingsScreen(
                 label = "Printer Queue",
                 value = settings.queue,
                 error = settings.validation.queue,
+                placeholder = "Queue name from CUPS",
                 onValueChange = { onFieldChanged(PrinterSettingField.Queue, it) }
             )
 
@@ -151,6 +169,7 @@ private fun SettingsTextField(
     label: String,
     value: String,
     error: String?,
+    placeholder: String,
     onValueChange: (String) -> Unit,
     keyboardType: KeyboardType = KeyboardType.Text
 ) {
@@ -159,6 +178,7 @@ private fun SettingsTextField(
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
         label = { Text(label) },
+        placeholder = { Text(placeholder) },
         singleLine = true,
         isError = error != null,
         supportingText = error?.let { message -> { Text(message) } },
