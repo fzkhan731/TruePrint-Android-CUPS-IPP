@@ -10,6 +10,10 @@ TruePrint does not use cloud printing, printer discovery, public port forwarding
 
 > **Project status:** Development build. Test the app with a non-critical document before relying on it for important work.
 
+## Download
+
+The latest development APK is available from the [GitHub Releases page](https://github.com/fzkhan731/TruePrint-Android-CUPS-IPP/releases). It is a debug/pre-release build and installs as **TruePrint Dev** with package name `com.trueprint.app.dev`.
+
 ## What it supports
 
 - Print PDFs and JPEG/PNG images through a configured CUPS queue
