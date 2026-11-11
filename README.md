@@ -8,11 +8,11 @@ Android phone -> private network or Tailscale -> CUPS -> printer
 
 TruePrint does not use cloud printing, printer discovery, public port forwarding, analytics, or stored CUPS credentials. Your documents are submitted directly from the phone to the CUPS queue you configure.
 
-> **Project status:** Development build. Test the app with a non-critical document before relying on it for important work.
+> **Project status:** Signed public release available. Test the app with a non-critical document before relying on it for important work.
 
 ## Download
 
-The latest development APK is available from the [GitHub Releases page](https://github.com/fzkhan731/TruePrint-Android-CUPS-IPP/releases). It is a debug/pre-release build and installs as **TruePrint Dev** with package name `com.trueprint.app.dev`.
+The latest signed APK is available from the [GitHub Releases page](https://github.com/fzkhan731/TruePrint-Android-CUPS-IPP/releases). It installs as **TruePrint** with package name `com.trueprint.app.public`, separately from any personal or development installation.
 
 ## What it supports
 
