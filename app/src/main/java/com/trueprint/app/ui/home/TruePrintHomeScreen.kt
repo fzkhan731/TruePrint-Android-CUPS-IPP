@@ -69,7 +69,7 @@ fun TruePrintHomeScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = { TopAppBar(title = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_trueprint_printer), contentDescription = "TruePrint printer", modifier = Modifier.height(28.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("TruePrint Dev") } }) },
+        topBar = { TopAppBar(title = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(painterResource(R.drawable.ic_trueprint_printer), contentDescription = "TruePrint printer", modifier = Modifier.height(28.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("TruePrint") } }) },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
         Column(

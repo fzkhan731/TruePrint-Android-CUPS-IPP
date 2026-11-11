@@ -10,7 +10,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.trueprint.app.dev"
+        applicationId = "com.trueprint.app.public"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
@@ -19,11 +19,21 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("TRUEPRINT_RELEASE_STORE_FILE") ?: "missing-release-keystore.jks")
+            storePassword = System.getenv("TRUEPRINT_RELEASE_KEY_PASSWORD")
+            keyAlias = "trueprint"
+            keyPassword = System.getenv("TRUEPRINT_RELEASE_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
             optimization {
                 enable = false
             }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
